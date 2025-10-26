@@ -1,0 +1,22 @@
+
+# render.yaml — Déploiement automatique Lyra Banque optimisé
+services:
+  - type: web
+    name: lyra-banque
+    env: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    autoDeploy: true
+    envVars:
+      - key: GATEWAY_BASE
+        # Met cette valeur dans le dashboard Render plutôt que dans GitHub
+        value: "https://gateway.singpay.ga/v1"
+      - key: WALLET_ID
+        value: "SET_IN_RENDER_DASHBOARD"
+      - key: MERCHANT_MOOV
+        value: "SET_IN_RENDER_DASHBOARD"
+      - key: ENABLE_WITHDRAWAL
+        value: "true"
+      - key: APP_NAME
+        value: "Lyra Banque"
