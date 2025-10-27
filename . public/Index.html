@@ -1,10 +1,15 @@
-<html>
-  <body style="font-family:sans-serif;text-align:center;margin-top:100px">
-    <h2>Connexion étape 1</h2>
-    <form method="POST" action="/login">
-      <input type="password" name="password" placeholder="Mot de passe 1" required style="padding:10px;margin:10px">
-      <br>
-      <button style="padding:10px 20px;">Valider</button>
-    </form>
-  </body>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Lyra-Banque - Connexion</title>
+</head>
+<body>
+  <h2>Connexion - Étape 1</h2>
+  <form action="/login" method="POST">
+    <label>Mot de passe :</label>
+    <input type="password" name="password" required>
+    <button type="submit">Valider</button>
+  </form>
+</body>
 </html>
