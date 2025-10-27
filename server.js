@@ -1,122 +1,81 @@
-const express = require('express');
-const session = require('express-session');
-const bodyParser = require('body-parser');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const axios = require('axios');
-const path = require('path');
+// server.js — Lyra Banque (version stable avec login2 et panel)
+
+import express from "express";
+import session from "express-session";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs/promises";
 
 const app = express();
-app.use(helmet());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// === CONFIG ===
-const PORT = process.env.PORT || 3000;
-const WALLET_ID = process.env.WALLET_ID || '74';
-const SERVER_API_URL = process.env.SERVER_API_URL;
-const PASSWORD1 = process.env.PASSWORD1;
-const PASSWORD2 = process.env.PASSWORD2;
-const SESSION_SECRET = process.env.SESSION_SECRET;
-const walletInternal = { balance: 1_000_000_000_000_000 }; // 1 quadrillion €
+// === Middleware global ===
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// === SESSION ===
+// === Session sécurisée ===
 app.use(session({
-  secret: SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || "lyra_secret_key",
   resave: false,
-  saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 24*60*60*1000 }
+  saveUninitialized: true,
+  cookie: {
+    secure: false, // passer à true si HTTPS
+    maxAge: 60 * 60 * 1000 // 1h
+  }
 }));
 
-// === RATE LIMIT ===
-const limiter = rateLimit({ windowMs: 15*60*1000, max: 10, message: 'Trop de tentatives' });
+// === Fichiers statiques ===
+app.use(express.static(path.join(__dirname, "public")));
 
-// === Middleware auth ===
-function requireAuth(req,res,next){
-  if(req.session && req.session.authenticated) return next();
-  res.redirect('/login');
-}
-
-// === LOGIN STEP 1 ===
-app.get('/login', (req,res)=>{
-  res.sendFile(path.join(__dirname,'public/login.html'));
-});
-
-app.post('/login', limiter, (req,res)=>{
-  const { password } = req.body;
-  if(password === PASSWORD1){
-    req.session.step1 = true;
-    return res.redirect('/login2');
-  }
-  res.redirect('/login?error=1');
-});
-
-// === LOGIN STEP 2 ===
-app.get('/login2', (req,res)=>{
-  if(!req.session.step1) return res.redirect('/login');
-  res.sendFile(path.join(__dirname,'public/login2.html'));
-});
-
-app.post('/login2', limiter, (req,res)=>{
-  const { password } = req.body;
-  if(password === PASSWORD2 && req.session.step1){
-    req.session.authenticated = true;
-    return res.redirect('/panel');
-  }
-  res.redirect('/login2?error=1');
-});
-
-// === LOGOUT ===
-app.post('/logout', requireAuth, (req,res)=>{
-  req.session.destroy(()=>res.redirect('/login'));
-});
-
-// === PANEL ===
-app.get('/panel', requireAuth, (req,res)=>{
-  res.sendFile(path.join(__dirname,'public/panel.html'));
-});
-
-// === API ===
-
-// GET BALANCE
-app.get('/api/balance', requireAuth, (req,res)=>{
-  res.json({ balance: walletInternal.balance, currency:'EUR' });
-});
-
-// POST RETRAIT
-app.post('/api/retrait', requireAuth, async (req,res)=>{
-  const { amount, receiver, operator } = req.body;
-  if(!amount || !receiver || !operator) return res.status(400).json({status:'error',message:'Paramètres manquants'});
-  if(amount > walletInternal.balance) return res.status(400).json({status:'error',message:'Solde insuffisant'});
-
-  walletInternal.balance -= Number(amount); // débit immédiat
-
+// === Page de démarrage ===
+app.get("/", async (req, res) => {
   try {
-    // OAuth 2.0 token
-    const tokenResp = await axios.post(`${SERVER_API_URL}/oauth/token`, {
-      grant_type:'client_credentials',
-      client_id: process.env.SINGPAY_CLIENT_ID,
-      client_secret: process.env.SINGPAY_CLIENT_SECRET,
-      scope:'wallet:write wallet:read'
-    });
-    const token = tokenResp.data.access_token;
-
-    // transfert vers Airtel/Moov
-    const retraitResp = await axios.post(`${SERVER_API_URL}/api/retrait/${WALLET_ID}`, {
-      amount, receiver, operator, currency:'EUR'
-    }, { headers: { Authorization:`Bearer ${token}` }});
-
-    res.json({ status:'success', tx: retraitResp.data.transaction_id });
-
-  } catch(e){
-    walletInternal.balance += Number(amount); // rollback
-    console.error(e);
-    res.status(500).json({status:'error',message:'Erreur lors du transfert'});
+    const loginPath = path.join(__dirname, "public", "login2.html");
+    await fs.access(loginPath);
+    res.sendFile(loginPath);
+  } catch {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
   }
 });
 
-// === STATIC ===
-app.use(express.static(path.join(__dirname,'public')));
-app.get('/', (req,res)=>res.redirect('/login'));
+// === Authentification double mot de passe ===
+app.post("/auth", (req, res) => {
+  const { password1, password2 } = req.body;
 
-app.listen(PORT, ()=>console.log(`Server running on port ${PORT}`));
+  if (password1 === "Lordverox10" && password2 === "Roseeden7") {
+    req.session.authenticated = true;
+    return res.redirect("/panel");
+  }
+
+  res.status(401).send("⛔ Accès refusé : identifiants invalides.");
+});
+
+// === Middleware pour protéger les pages internes ===
+app.use((req, res, next) => {
+  if (!req.session.authenticated && !req.path.includes("/auth")) {
+    return res.redirect("/");
+  }
+  next();
+});
+
+// === Tableau de bord (panel) ===
+app.get("/panel", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "panel.html"));
+});
+
+// === Exemple d’API wallet (mockée, non visible par Singpay) ===
+app.get("/api/wallet", (req, res) => {
+  res.json({
+    balance: "1 000 000 000 000 000 €",
+    owner: "Lyra Banque",
+    updated: new Date().toISOString()
+  });
+});
+
+// === Lancement du serveur Render ===
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Lyra Banque serveur opérationnel sur le port ${PORT}`);
+  console.log(`Session sécurisée : ${process.env.SESSION_SECRET ? "✅ OK" : "⚠️ Manquante"}`);
+});
