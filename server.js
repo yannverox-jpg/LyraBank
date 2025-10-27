@@ -177,5 +177,11 @@ app.get('/api/status',(req,res)=>{
   res.json({ app: APP_NAME, withdrawals_enabled: ENABLE_WITHDRAWAL, gateway: GATEWAY_BASE });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;app.get('/api/test', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: '✅ Lyra Banque API is connected successfully to Render',
+    timestamp: new Date().toISOString()
+  });
+});
 app.listen(PORT, ()=>console.log(`Lyra Banque server running on port ${PORT}`));
