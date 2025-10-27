@@ -1,4 +1,4 @@
-// server.js — Lyra Banque (version stable avec login2 et panel)
+server.js — Lyra Banque (version stable avec login2 et panel)
 
 import express from "express";
 import session from "express-session";
